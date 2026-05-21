@@ -13,7 +13,8 @@ export default function Navbar() {
   return (
     <header className="navbar">
       <Link to="/" className="navbar-brand">
-        Winter Olympics
+        <span className="brand-icon">❄️</span>
+        Winter Games
       </Link>
 
       <nav className="navbar-links">
