@@ -6,88 +6,129 @@ export default function StatisticsPage() {
   const [averageAge, setAverageAge] = useState(null);
   const [youngest, setYoungest] = useState(null);
   const [oldest, setOldest] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadStatistics();
-  }, []);
+  function medalBadgeStyle(medal) {
+  if (medal === "GOLD")   return { background: "rgba(251,191,36,0.15)",  color: "#fbbf24", border: "1px solid rgba(251,191,36,0.4)"  };
+  if (medal === "SILVER") return { background: "rgba(148,163,184,0.15)", color: "#cbd5e1", border: "1px solid rgba(148,163,184,0.4)" };
+  if (medal === "BRONZE") return { background: "rgba(180,83,9,0.2)",     color: "#d97706", border: "1px solid rgba(180,83,9,0.4)"    };
+  return {};
+}
 
-  const loadStatistics = async () => {
-    const medalsResponse = await apiClient.get("/statistics/medals-by-country");
-    const averageAgeResponse = await apiClient.get("/statistics/average-age");
+  useEffect(() => { load(); }, []);
 
-    setMedals(medalsResponse.data);
-    setAverageAge(averageAgeResponse.data);
-
+  const load = async () => {
     try {
-      const youngestResponse = await apiClient.get(
-        "/statistics/youngest-medalist"
-      );
-      setYoungest(youngestResponse.data);
-    } catch {
-      setYoungest(null);
-    }
+      const [mRes, aRes] = await Promise.all([
+        apiClient.get("/statistics/medals-by-country"),
+        apiClient.get("/statistics/average-age"),
+      ]);
+      setMedals(mRes.data);
+      setAverageAge(aRes.data);
+    } catch {}
 
-    try {
-      const oldestResponse = await apiClient.get("/statistics/oldest-medalist");
-      setOldest(oldestResponse.data);
-    } catch {
-      setOldest(null);
-    }
+    try { const r = await apiClient.get("/statistics/youngest-medalist"); setYoungest(r.data); } catch {}
+    try { const r = await apiClient.get("/statistics/oldest-medalist");   setOldest(r.data);   } catch {}
+    setLoading(false);
   };
 
+  const total = medals.reduce((s, r) => s + r.totalMedals, 0);
+
   return (
-    <section className="page">
-      <div className="page-header">
-        <h2>Statistics</h2>
+    <div>
+      <div className="page-head">
+        <div>
+          <span className="section-label">Olympic Overview</span>
+          <h1 className="page-title">Statistics</h1>
+          <p className="page-subtitle">Live medal table and athlete statistics.</p>
+        </div>
       </div>
 
-      <div className="grid">
-        <article className="card">
-          <h3>Average Age</h3>
-          <p>
-            {averageAge
-              ? `${averageAge.averageAge} years (${averageAge.participantsCount} participants)`
-              : "No data"}
-          </p>
-        </article>
-
-        <article className="card">
-          <h3>Youngest Medalist</h3>
-          <p>{youngest ? youngest.athleteFullName : "No medalists yet"}</p>
-        </article>
-
-        <article className="card">
-          <h3>Oldest Medalist</h3>
-          <p>{oldest ? oldest.athleteFullName : "No medalists yet"}</p>
-        </article>
+      {/* Stat cards */}
+      <div className="grid-4 anim-fade-up">
+        <div className="card stat-card">
+          <div className="stat-card-icon">🏅</div>
+          <div className="stat-card-value">{total}</div>
+          <div className="stat-card-label">Total Medals</div>
+        </div>
+        <div className="card stat-card">
+          <div className="stat-card-icon">🌍</div>
+          <div className="stat-card-value">{medals.length}</div>
+          <div className="stat-card-label">Countries</div>
+        </div>
+        <div className="card stat-card">
+          <div className="stat-card-icon">📊</div>
+          <div className="stat-card-value">{averageAge ? Number(averageAge.averageAge).toFixed(1) : "—"}</div>
+          <div className="stat-card-label">Avg Age ({averageAge?.participantsCount ?? 0} athletes)</div>
+        </div>
+        <div className="card stat-card">
+          <div className="stat-card-icon">🥇</div>
+          <div className="stat-card-value">{medals[0]?.country ?? "—"}</div>
+          <div className="stat-card-label">Medal Leader</div>
+        </div>
       </div>
 
-      <div className="card table-card">
-        <h3>Medals by Country</h3>
+      {/* Medalists */}
+      <div className="grid-2 section-gap anim-fade-up anim-delay-1">
+        <div className="card card-padded">
+          <div className="section-label">🏃 Youngest Medalist</div>
+          {youngest ? (
+            <>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: "26px", color: "var(--white)", marginTop: "8px" }}>{youngest.athleteFullName}</div>
+              <div className="text-muted text-sm mt-8">{youngest.country} · {youngest.competitionName}</div>
+             <span className="badge" style={medalBadgeStyle(youngest.medal)}>{youngest.medal}</span>
+            </>
+          ) : <div className="text-muted mt-8">No medalists yet</div>}
+        </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Country</th>
-              <th>Gold</th>
-              <th>Silver</th>
-              <th>Bronze</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {medals.map((row) => (
-              <tr key={row.country}>
-                <td>{row.country}</td>
-                <td>{row.goldMedals}</td>
-                <td>{row.silverMedals}</td>
-                <td>{row.bronzeMedals}</td>
-                <td>{row.totalMedals}</td>
+        <div className="card card-padded">
+          <div className="section-label">🏆 Oldest Medalist</div>
+          {oldest ? (
+            <>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: "26px", color: "var(--white)", marginTop: "8px" }}>{oldest.athleteFullName}</div>
+              <div className="text-muted text-sm mt-8">{oldest.country} · {oldest.competitionName}</div>
+              <span className="badge" style={medalBadgeStyle(oldest.medal)}>{oldest.medal}</span>
+            </>
+          ) : <div className="text-muted mt-8">No medalists yet</div>}
+        </div>
+      </div>
+
+      {/* Medal table */}
+      <div className="card section-gap anim-fade-up anim-delay-2">
+        <div className="card-header">
+          <h3>🌍 Medal Table by Country</h3>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Country</th>
+                <th>🥇 Gold</th>
+                <th>🥈 Silver</th>
+                <th>🥉 Bronze</th>
+                <th>Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>Loading…</td></tr>}
+              {!loading && medals.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)" }}>No medals awarded yet</td></tr>
+              )}
+              {medals.map((row, i) => (
+                <tr key={row.country} className={i < 3 ? `rank-${i + 1}` : ""}>
+                  <td className={`td-rank${i < 3 ? ` top${i + 1}` : ""}`}>{i + 1}</td>
+                  <td className="text-white" style={{ fontWeight: 700 }}>{row.country}</td>
+                  <td style={{ color: "var(--gold)", fontWeight: 700 }}>{row.goldMedals}</td>
+                  <td style={{ color: "var(--silver)", fontWeight: 700 }}>{row.silverMedals}</td>
+                  <td style={{ color: "var(--bronze)", fontWeight: 700 }}>{row.bronzeMedals}</td>
+                  <td style={{ fontWeight: 800 }}>{row.totalMedals}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </section>
+    </div>
   );
 }

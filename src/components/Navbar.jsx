@@ -5,33 +5,38 @@ export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
-
   return (
     <header className="navbar">
       <Link to="/" className="navbar-brand">
-        <span className="brand-icon">❄️</span>
-        Winter Games
+        <div className="brand-rings">
+          <span /><span /><span /><span /><span />
+        </div>
+        WINTER GAMES
       </Link>
 
       <nav className="navbar-links">
-        <NavLink to="/competitions">Competitions</NavLink>
-        <NavLink to="/athletes">Athletes</NavLink>
-        <NavLink to="/statistics">Statistics</NavLink>
+        <NavLink to="/competitions" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
+          Competitions
+        </NavLink>
+        <NavLink to="/athletes" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
+          Athletes
+        </NavLink>
+        <NavLink to="/statistics" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
+          Statistics
+        </NavLink>
 
-        {!isAuthenticated && <NavLink to="/login">Login</NavLink>}
-        {!isAuthenticated && <NavLink to="/register">Register</NavLink>}
+        {!isAuthenticated && (
+          <>
+            <NavLink to="/login" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>Login</NavLink>
+            <NavLink to="/register" className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>Register</NavLink>
+          </>
+        )}
 
         {isAuthenticated && (
           <>
-            <span className="navbar-user">
-              {user.username} ({user.role})
-            </span>
-            <button onClick={handleLogout} className="nav-button">
-              Logout
+            <span className="nav-user">{user.username} · {user.role}</span>
+            <button className="btn-logout" onClick={() => { logout(); navigate("/"); }}>
+              Sign out
             </button>
           </>
         )}

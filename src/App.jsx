@@ -6,24 +6,27 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import CompetitionsPage from "./pages/CompetitionsPage";
 import AthletesPage from "./pages/AthletesPage";
+import AthleteProfilePage from "./pages/AthleteProfilePage";
 import StatisticsPage from "./pages/StatisticsPage";
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Navbar />
-
-        <main>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/competitions" element={<CompetitionsPage />} />
-            <Route path="/athletes" element={<AthletesPage />} />
-            <Route path="/statistics" element={<StatisticsPage />} />
-          </Routes>
-        </main>
+        <div className="app-shell">
+          <Navbar />
+          <main style={{ position: "relative", zIndex: 1 }}>
+            <Routes>
+              <Route path="/"                element={<HomePage />} />
+              <Route path="/login"           element={<LoginPage />} />
+              <Route path="/register"        element={<RegisterPage />} />
+              <Route path="/competitions"    element={<CompetitionsPage />} />
+              <Route path="/athletes"        element={<AthletesPage />} />
+              <Route path="/athletes/:id"    element={<AthleteProfilePage />} />
+              <Route path="/statistics"      element={<StatisticsPage />} />
+            </Routes>
+          </main>
+        </div>
       </AuthProvider>
     </BrowserRouter>
   );

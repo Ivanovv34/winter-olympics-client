@@ -1,78 +1,64 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-
-  const [form, setForm] = useState({
-    username: "",
-    password: "",
-    role: "ATHLETE",
-  });
-
+  const [form, setForm] = useState({ username: "", password: "", role: "ATHLETE" });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleChange = (event) => {
-    setForm({
-      ...form,
-      [event.target.name]: event.target.value,
-    });
-  };
+  const handle = e => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setError("");
-
+  const submit = async e => {
+    e.preventDefault();
+    setError(""); setLoading(true);
     try {
       await register(form.username, form.password, form.role);
       navigate("/login");
     } catch {
-      setError("Registration failed.");
+      setError("Registration failed. Username may already be taken.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <section className="page">
-      <div className="card form-card">
-        <h2>Register</h2>
+    <div className="auth-wrap">
+      <div className="auth-card card anim-fade-up">
+        <div className="card-body">
+          <div className="auth-title">Create account</div>
+          <div className="auth-sub">Join the Winter Games platform</div>
 
-        {error && <p className="error-message">{error}</p>}
+          {error && <div className="msg msg-error">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="form">
-          <label>
-            Username
-            <input
-              name="username"
-              value={form.username}
-              onChange={handleChange}
-              required
-            />
-          </label>
+          <form className="auth-form" onSubmit={submit}>
+            <div className="field">
+              <label>Username</label>
+              <input className="input" name="username" value={form.username} onChange={handle} required autoFocus />
+            </div>
+            <div className="field">
+              <label>Password</label>
+              <input className="input" name="password" type="password" value={form.password} onChange={handle} required />
+            </div>
+            <div className="field">
+              <label>Role</label>
+              <select className="select" name="role" value={form.role} onChange={handle}>
+                <option value="ATHLETE">Athlete</option>
+                <option value="ADMIN">Administrator</option>
+              </select>
+            </div>
+            <button className="btn btn-primary btn-full" type="submit" disabled={loading}>
+              {loading ? "Creating account…" : "Create account"}
+            </button>
+          </form>
 
-          <label>
-            Password
-            <input
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={handleChange}
-              required
-            />
-          </label>
-
-          <label>
-            Role
-            <select name="role" value={form.role} onChange={handleChange}>
-              <option value="ATHLETE">ATHLETE</option>
-              <option value="ADMIN">ADMIN</option>
-            </select>
-          </label>
-
-          <button type="submit">Register</button>
-        </form>
+          <div className="auth-footer">
+            Already have an account? <Link to="/login">Sign in</Link>
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   );
 }
