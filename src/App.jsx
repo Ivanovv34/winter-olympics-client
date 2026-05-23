@@ -8,6 +8,7 @@ import CompetitionsPage from "./pages/CompetitionsPage";
 import AthletesPage from "./pages/AthletesPage";
 import AthleteProfilePage from "./pages/AthleteProfilePage";
 import StatisticsPage from "./pages/StatisticsPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
               <Route path="/athletes"        element={<AthletesPage />} />
               <Route path="/athletes/:id"    element={<AthleteProfilePage />} />
               <Route path="/statistics"      element={<StatisticsPage />} />
+              <Route path="*"               element={<NotFoundPage />} />
             </Routes>
           </main>
         </div>
