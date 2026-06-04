@@ -3,8 +3,35 @@ import { useNavigate } from "react-router-dom";
 import apiClient from "../api/apiClient";
 import { useAuth } from "../auth/AuthContext";
 import { getFlag } from "../utils/flags";
+import ConfirmModal from "../components/ConfirmModal";
 
 const EMPTY_FORM = { firstName: "", lastName: "", country: "", gender: "MALE", birthDate: "" };
+
+const today = new Date().toISOString().split("T")[0];
+const minDate = "1900-01-01";
+
+function parseErrors(err) {
+  const data = err.response?.data;
+  if (!data) return "An unexpected error occurred.";
+  if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors.join("\n");
+  if (data.message) return data.message;
+  return "An unexpected error occurred.";
+}
+
+function validateForm(form) {
+  if (!form.firstName.trim()) return "First name is required.";
+  if (form.firstName.trim().length < 2) return "First name must be at least 2 characters.";
+  if (!form.lastName.trim()) return "Last name is required.";
+  if (form.lastName.trim().length < 2) return "Last name must be at least 2 characters.";
+  if (!form.country.trim()) return "Country is required.";
+  if (form.country.trim().length < 2) return "Country must be at least 2 characters.";
+  if (!form.birthDate) return "Date of birth is required.";
+  const birth = new Date(form.birthDate);
+  const todayDate = new Date();
+  if (birth >= todayDate) return "Date of birth must be in the past.";
+  if (birth.getFullYear() < 1900) return "Date of birth cannot be before 1900.";
+  return null;
+}
 
 function AthleteModal({ athlete, onClose, onSaved }) {
   const [form, setForm] = useState(athlete
@@ -14,17 +41,22 @@ function AthleteModal({ athlete, onClose, onSaved }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handle = e => setForm({ ...form, [e.target.name]: e.target.value });
+  const handle = e => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+    setError("");
+  };
 
   const submit = async e => {
     e.preventDefault();
+    const validationError = validateForm(form);
+    if (validationError) { setError(validationError); return; }
     setError(""); setLoading(true);
     try {
       if (athlete) await apiClient.put(`/athletes/${athlete.id}`, form);
       else await apiClient.post("/athletes", form);
       onSaved();
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to save athlete.");
+      setError(parseErrors(err));
     } finally { setLoading(false); }
   };
 
@@ -36,16 +68,16 @@ function AthleteModal({ athlete, onClose, onSaved }) {
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
-          {error && <div className="msg msg-error">{error}</div>}
+          {error && <div className="msg msg-error" style={{ whiteSpace: "pre-line" }}>{error}</div>}
           <form className="modal-form" onSubmit={submit}>
             <div className="form-grid">
               <div className="field">
                 <label>First Name</label>
-                <input className="input" name="firstName" value={form.firstName} onChange={handle} required />
+                <input className="input" name="firstName" value={form.firstName} onChange={handle} required placeholder="At least 2 characters" />
               </div>
               <div className="field">
                 <label>Last Name</label>
-                <input className="input" name="lastName" value={form.lastName} onChange={handle} required />
+                <input className="input" name="lastName" value={form.lastName} onChange={handle} required placeholder="At least 2 characters" />
               </div>
               <div className="field">
                 <label>Country</label>
@@ -60,7 +92,24 @@ function AthleteModal({ athlete, onClose, onSaved }) {
               </div>
               <div className="field" style={{ gridColumn: "1 / -1" }}>
                 <label>Date of Birth</label>
-                <input className="input" name="birthDate" type="date" value={form.birthDate} onChange={handle} required />
+                <input
+                  className="input" name="birthDate" type="date"
+                  value={form.birthDate} onChange={handle}
+                  required min={minDate} max={today}
+                />
+                <span style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
+                  Must be between 01.01.1900 and today
+                </span>
+                {form.birthDate && new Date(form.birthDate) >= new Date(today) && (
+                  <span style={{ fontSize: "12px", color: "#fca5a5", marginTop: "2px" }}>
+                    ⚠ Date of birth must be in the past
+                  </span>
+                )}
+                {form.birthDate && new Date(form.birthDate).getFullYear() < 1900 && (
+                  <span style={{ fontSize: "12px", color: "#fca5a5", marginTop: "2px" }}>
+                    ⚠ Date of birth cannot be before 1900
+                  </span>
+                )}
               </div>
             </div>
             <div className="modal-actions">
@@ -79,10 +128,10 @@ function AthleteModal({ athlete, onClose, onSaved }) {
 function calcAge(birthDate) {
   if (!birthDate) return null;
   const birth = new Date(birthDate);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
   return age;
 }
 
@@ -96,6 +145,7 @@ export default function AthletesPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [modal, setModal] = useState(null);
+  const [confirm, setConfirm] = useState(null);
 
   useEffect(() => { load(); }, []);
 
@@ -106,13 +156,18 @@ export default function AthletesPage() {
     } catch { setError("Failed to load athletes."); }
   };
 
-  const handleDelete = async (id, e) => {
+  const handleDelete = (athlete, e) => {
     e.stopPropagation();
-    if (!confirm("Delete this athlete?")) return;
+    setConfirm(athlete);
+  };
+
+  const confirmDelete = async () => {
     try {
-      await apiClient.delete(`/athletes/${id}`);
-      setSuccess("Athlete deleted."); load();
-    } catch { setError("Failed to delete athlete."); }
+      await apiClient.delete(`/athletes/${confirm.id}`);
+      setSuccess(`${confirm.firstName} ${confirm.lastName} was deleted.`);
+      setConfirm(null);
+      load();
+    } catch { setError("Failed to delete athlete."); setConfirm(null); }
   };
 
   const canManage = (athlete) =>
@@ -132,11 +187,20 @@ export default function AthletesPage() {
 
   return (
     <div>
+      {confirm && (
+        <ConfirmModal
+          title="Delete Athlete"
+          message={`Are you sure you want to delete ${confirm.firstName} ${confirm.lastName}? This action cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
       {modal && (
         <AthleteModal
           athlete={modal === "create" ? null : modal}
           onClose={() => setModal(null)}
-          onSaved={() => { setModal(null); setSuccess("Saved!"); load(); }}
+          onSaved={() => { setModal(null); setSuccess("Athlete saved successfully!"); load(); }}
         />
       )}
 
@@ -160,12 +224,7 @@ export default function AthletesPage() {
         <div className="form-grid" style={{ gridTemplateColumns: "2fr 1fr 1fr", gap: "12px" }}>
           <div className="field">
             <label>Search</label>
-            <input
-              className="input"
-              placeholder="Name or country…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+            <input className="input" placeholder="Name or country…" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div className="field">
             <label>Country</label>
@@ -222,7 +281,7 @@ export default function AthletesPage() {
               {canManage(a) && (
                 <div className="flex gap-8 mt-16" onClick={e => e.stopPropagation()}>
                   <button className="btn btn-secondary btn-sm" onClick={() => setModal(a)}>Edit</button>
-                  <button className="btn btn-danger btn-sm" onClick={e => handleDelete(a.id, e)}>Delete</button>
+                  <button className="btn btn-danger btn-sm" onClick={e => handleDelete(a, e)}>Delete</button>
                 </div>
               )}
             </div>

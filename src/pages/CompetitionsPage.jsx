@@ -3,6 +3,7 @@ import apiClient from "../api/apiClient";
 import { useAuth } from "../auth/AuthContext";
 import MedalBadge from "../components/MedalBadge";
 import { getFlag } from "../utils/flags";
+import ConfirmModal from "../components/ConfirmModal";
 
 const statusClass = s => ({
   OPEN: "badge-status-open",
@@ -14,6 +15,27 @@ const statusClass = s => ({
 function fmt(v) { return v != null ? `${v}s` : "—"; }
 
 const dnfBadge = <span className="badge" style={{ background: "rgba(239,68,68,0.1)", color: "#fca5a5" }}>DNF</span>;
+function parseErrors(err) {
+  const data = err.response?.data;
+  if (!data) return "An unexpected error occurred.";
+  if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors.join("\n");
+  if (data.message) return data.message;
+  return "An unexpected error occurred.";
+}
+
+function validateCompetition(form) {
+  if (!form.name.trim()) return "Competition name is required.";
+  if (form.name.trim().length < 3) return "Competition name must be at least 3 characters.";
+  if (!form.minAge || Number(form.minAge) < 10) return "Minimum age must be at least 10.";
+  if (Number(form.minAge) > 100) return "Minimum age cannot exceed 100.";
+  if (!form.competitionDate) return "Competition date is required.";
+  const d = new Date(form.competitionDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (d < today) return "Competition date must be today or in the future.";
+  return null;
+}
+
+
 
 // ── Create Competition Modal ──────────────────────────────────────────────
 function CreateCompModal({ onClose, onSaved }) {
@@ -23,11 +45,14 @@ function CreateCompModal({ onClose, onSaved }) {
   const handle = e => setForm({ ...form, [e.target.name]: e.target.value });
 
   const submit = async e => {
-    e.preventDefault(); setError(""); setLoading(true);
+    e.preventDefault();
+    const validationError = validateCompetition(form);
+    if (validationError) { setError(validationError); return; }
+    setError(""); setLoading(true);
     try {
       await apiClient.post("/competitions", { ...form, minAge: Number(form.minAge) });
       onSaved();
-    } catch (err) { setError(err.response?.data?.message || "Failed to create."); }
+    } catch (err) { setError(parseErrors(err)); }
     finally { setLoading(false); }
   };
 
@@ -39,7 +64,7 @@ function CreateCompModal({ onClose, onSaved }) {
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
-          {error && <div className="msg msg-error">{error}</div>}
+          {error && <div className="msg msg-error" style={{ whiteSpace: "pre-line" }}>{error}</div>}
           <form className="modal-form" onSubmit={submit}>
             <div className="form-grid">
               <div className="field" style={{ gridColumn: "1 / -1" }}>
@@ -112,7 +137,7 @@ function SlalomPanel({ comp, isAdmin }) {
       m("success", "First run saved.");
       setFr({ athleteId: "", firstRunTime: "", didNotFinish: false });
       loadResults();
-    } catch (err) { m("error", err.response?.data?.message || "Error."); }
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   const qualify = async e => {
@@ -120,7 +145,7 @@ function SlalomPanel({ comp, isAdmin }) {
     try {
       await apiClient.post(`/competitions/${comp.id}/slalom/qualify-second-run`, { topN: Number(qual.topN) });
       m("success", "Second-run start list generated."); loadResults();
-    } catch (err) { m("error", err.response?.data?.message || "Error."); }
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   const enterSecond = async e => {
@@ -134,19 +159,19 @@ function SlalomPanel({ comp, isAdmin }) {
       m("success", "Second run saved.");
       setSr({ athleteId: "", secondRunTime: "", didNotFinish: false });
       loadResults();
-    } catch (err) { m("error", err.response?.data?.message || "Error."); }
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   const calcRanking = async () => {
     try {
       await apiClient.post(`/competitions/${comp.id}/slalom/calculate-ranking`);
       m("success", "Ranking calculated!"); loadRanking();
-    } catch (err) { m("error", err.response?.data?.message || "Error."); }
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   return (
     <div>
-      {msg.text && <div className={`msg msg-${msg.type}`}>{msg.text}</div>}
+      {msg.text && <div className={`msg msg-${msg.type}`} style={{ whiteSpace: "pre-line" }}>{msg.text}</div>}
       <div className="tabs">
         {[
           { id: "results", label: "⛷️ Results" },
@@ -306,19 +331,19 @@ function BiathlonPanel({ comp, isAdmin }) {
       m("success", "Result saved.");
       setForm({ athleteId: "", skiTime: "", missedShots: 0, didNotFinish: false });
       loadResults();
-    } catch (err) { m("error", err.response?.data?.message || "Error."); }
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   const calcRanking = async () => {
     try {
       await apiClient.post(`/competitions/${comp.id}/biathlon/calculate-ranking`);
       m("success", "Ranking calculated!"); loadRanking();
-    } catch (err) { m("error", err.response?.data?.message || "Error."); }
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   return (
     <div>
-      {msg.text && <div className={`msg msg-${msg.type}`}>{msg.text}</div>}
+      {msg.text && <div className={`msg msg-${msg.type}`} style={{ whiteSpace: "pre-line" }}>{msg.text}</div>}
       <div className="tabs">
         {[
           { id: "results",  label: "🎿 Results" },
@@ -428,7 +453,7 @@ function RegistrationPanel({ comp, isAuthenticated }) {
     try {
       await apiClient.post(`/competitions/${comp.id}/registrations/${athleteId}`);
       setMsg({ type: "success", text: "Registered!" }); setAthleteId(""); load();
-    } catch (err) { setMsg({ type: "error", text: err.response?.data?.message || "Error." }); }
+    } catch (err) { setMsg({ type: "error", text: parseErrors(err) }); }
   };
 
   const unregister = async (aId) => {
@@ -440,7 +465,7 @@ function RegistrationPanel({ comp, isAuthenticated }) {
 
   return (
     <div>
-      {msg.text && <div className={`msg msg-${msg.type}`}>{msg.text}</div>}
+      {msg.text && <div className={`msg msg-${msg.type}`} style={{ whiteSpace: "pre-line" }}>{msg.text}</div>}
       {isAuthenticated && (
         <div className="card" style={{ marginBottom: "16px" }}>
           <div className="card-body">
@@ -488,6 +513,7 @@ export default function CompetitionsPage() {
   const [activeTab, setActiveTab] = useState("results");
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState("");
+  const [confirmComp, setConfirmComp] = useState(null);
 
   useEffect(() => { load(); }, []);
 
@@ -496,17 +522,33 @@ export default function CompetitionsPage() {
     catch { setError("Failed to load competitions."); }
   };
 
-  const handleDelete = async (id, e) => {
+  const handleDelete = (comp, e) => {
     e.stopPropagation();
-    if (!confirm("Delete this competition?")) return;
-    try { await apiClient.delete(`/competitions/${id}`); load(); if (selected?.id === id) setSelected(null); }
-    catch { setError("Failed to delete."); }
+    setConfirmComp(comp);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await apiClient.delete(`/competitions/${confirmComp.id}`);
+      if (selected?.id === confirmComp.id) setSelected(null);
+      setConfirmComp(null);
+      load();
+    } catch { setError("Failed to delete competition."); setConfirmComp(null); }
   };
 
   const select = comp => { setSelected(comp); setActiveTab("results"); };
 
   return (
     <div>
+      {confirmComp && (
+        <ConfirmModal
+          title="Delete Competition"
+          message={`Are you sure you want to delete "${confirmComp.name}"? All results and registrations will be permanently lost.`}
+          confirmLabel="Delete Competition"
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirmComp(null)}
+        />
+      )}
       {showCreate && <CreateCompModal onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); load(); }} />}
 
       <div className="page-head">
@@ -518,7 +560,7 @@ export default function CompetitionsPage() {
         {isAdmin && <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Competition</button>}
       </div>
 
-      {error && <div className="msg msg-error">{error}</div>}
+      {error && <div className="msg msg-error" style={{ whiteSpace: "pre-line" }}>{error}</div>}
 
       <div className="grid-2">
         {competitions.length === 0 && (
@@ -547,7 +589,7 @@ export default function CompetitionsPage() {
               <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); select(c); }}>
                 View Details →
               </button>
-              {isAdmin && <button className="btn btn-danger btn-sm" onClick={e => handleDelete(c.id, e)}>Delete</button>}
+              {isAdmin && <button className="btn btn-danger btn-sm" onClick={e => handleDelete(c, e)}>Delete</button>}
             </div>
           </div>
         ))}
