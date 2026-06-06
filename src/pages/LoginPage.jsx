@@ -5,7 +5,8 @@ import { useAuth } from "../auth/AuthContext";
 function parseErrors(err) {
   const data = err.response?.data;
   if (!data) return "An unexpected error occurred.";
-  if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors.join("\n");
+  if (Array.isArray(data.messages) && data.messages.length > 0) return data.messages.join("\n");
+  if (Array.isArray(data.errors)   && data.errors.length > 0)   return data.errors.join("\n");
   if (data.message) return data.message;
   return "An unexpected error occurred.";
 }
