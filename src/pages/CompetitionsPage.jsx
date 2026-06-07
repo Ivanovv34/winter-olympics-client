@@ -15,6 +15,7 @@ const statusClass = s => ({
 function fmt(v) { return v != null ? `${v}s` : "—"; }
 
 const dnfBadge = <span className="badge" style={{ background: "rgba(239,68,68,0.1)", color: "#fca5a5" }}>DNF</span>;
+
 function parseErrors(err) {
   const data = err.response?.data;
   if (!data) return "An unexpected error occurred.";
@@ -35,7 +36,6 @@ function validateCompetition(form) {
   if (d < today) return "Competition date must be today or in the future.";
   return null;
 }
-
 
 
 // ── Create Competition Modal ──────────────────────────────────────────────
@@ -438,10 +438,13 @@ function BiathlonPanel({ comp, isAdmin }) {
 }
 
 // ── Registration Panel ────────────────────────────────────────────────────
-function RegistrationPanel({ comp, isAuthenticated }) {
+// ── Registration Panel ────────────────────────────────────────────────────
+function RegistrationPanel({ comp, isAuthenticated, isAdmin, user, athletes }) {
   const [registrations, setRegistrations] = useState([]);
   const [athleteId, setAthleteId] = useState("");
   const [msg, setMsg] = useState({ type: "", text: "" });
+
+  const m = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg({ type: "", text: "" }), 5000); };
 
   useEffect(() => { load(); }, [comp.id]);
 
@@ -449,44 +452,100 @@ function RegistrationPanel({ comp, isAuthenticated }) {
     try { const r = await apiClient.get(`/competitions/${comp.id}/registrations`); setRegistrations(r.data); } catch {}
   };
 
-  const register = async e => {
+  const myAthlete = user ? athletes.find(a => String(a.userId) === String(user.id)) : null;
+  const isAlreadyRegistered = myAthlete ? registrations.some(r => r.athleteId === myAthlete.id) : false;
+
+  const registerMe = async () => {
+    try {
+      await apiClient.post(`/competitions/${comp.id}/registrations/me`);
+      m("success", "You have been registered successfully!"); load();
+    } catch (err) { m("error", parseErrors(err)); }
+  };
+
+  const unregisterMe = async () => {
+    try {
+      await apiClient.delete(`/competitions/${comp.id}/registrations/me`);
+      m("success", "You have been unregistered."); load();
+    } catch (err) { m("error", parseErrors(err)); }
+  };
+
+  const registerByIdSubmit = async e => {
     e.preventDefault();
     try {
       await apiClient.post(`/competitions/${comp.id}/registrations/${athleteId}`);
-      setMsg({ type: "success", text: "Registered!" }); setAthleteId(""); load();
-    } catch (err) { setMsg({ type: "error", text: parseErrors(err) }); }
+      m("success", "Athlete registered!"); setAthleteId(""); load();
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   const unregister = async (aId) => {
     try {
       await apiClient.delete(`/competitions/${comp.id}/registrations/${aId}`);
-      setMsg({ type: "success", text: "Unregistered." }); load();
-    } catch { setMsg({ type: "error", text: "Error." }); }
+      m("success", "Athlete unregistered."); load();
+    } catch (err) { m("error", parseErrors(err)); }
   };
 
   return (
     <div>
       {msg.text && <div className={`msg msg-${msg.type}`} style={{ whiteSpace: "pre-line" }}>{msg.text}</div>}
-      {isAuthenticated && (
+
+      {/* ATHLETE: Register Me */}
+      {isAuthenticated && !isAdmin && myAthlete && (
         <div className="card" style={{ marginBottom: "16px" }}>
           <div className="card-body">
-            <form onSubmit={register} style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+              <div>
+                <div style={{ fontWeight: 700, color: "var(--white)", marginBottom: "4px" }}>
+                  {myAthlete.firstName} {myAthlete.lastName}
+                  <span className="text-muted text-sm" style={{ marginLeft: "8px" }}>
+                    {getFlag(myAthlete.country)} {myAthlete.country}
+                  </span>
+                </div>
+                <div className="text-muted text-sm">Your athlete profile</div>
+              </div>
+              {isAlreadyRegistered ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span className="badge" style={{ background: "rgba(34,197,94,0.12)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.3)" }}>
+                    ✅ Registered
+                  </span>
+                  <button className="btn btn-danger btn-sm" onClick={unregisterMe}>Unregister</button>
+                </div>
+              ) : (
+                <button className="btn btn-primary" onClick={registerMe}>+ Register Me</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ATHLETE: no profile yet */}
+      {isAuthenticated && !isAdmin && !myAthlete && (
+        <div className="msg msg-info" style={{ marginBottom: "16px" }}>
+          You don't have an athlete profile yet. Go to <strong>Athletes</strong> and register your profile first.
+        </div>
+      )}
+
+      {/* ADMIN: Register by ID */}
+      {isAdmin && (
+        <div className="card" style={{ marginBottom: "16px" }}>
+          <div className="card-body">
+            <form onSubmit={registerByIdSubmit} style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
               <div className="field" style={{ flex: 1 }}>
-                <label>Athlete ID to register</label>
-                <input className="input" type="number" value={athleteId} onChange={e => setAthleteId(e.target.value)} required />
+                <label>Register Athlete by ID</label>
+                <input className="input" type="number" value={athleteId} onChange={e => setAthleteId(e.target.value)} required placeholder="Athlete ID" />
               </div>
               <button type="submit" className="btn btn-primary">Register</button>
             </form>
           </div>
         </div>
       )}
+
       <div className="card">
         <div className="card-header"><h3>Registered Athletes ({registrations.length})</h3></div>
         <div className="table-wrap">
           <table>
             <thead><tr>
               <th>Athlete</th><th>Country</th><th>Gender</th>
-              {isAuthenticated && <th></th>}
+              {isAdmin && <th></th>}
             </tr></thead>
             <tbody>
               {registrations.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: "32px" }}>No athletes registered yet</td></tr>}
@@ -495,7 +554,7 @@ function RegistrationPanel({ comp, isAuthenticated }) {
                   <td className="text-white">{r.athleteFullName}</td>
                   <td className="text-muted">{getFlag(r.country)} {r.country}</td>
                   <td><span className={`badge badge-${r.gender?.toLowerCase()}`}>{r.gender}</span></td>
-                  {isAuthenticated && <td><button className="btn btn-danger btn-sm" onClick={() => unregister(r.athleteId)}>Remove</button></td>}
+                  {isAdmin && <td><button className="btn btn-danger btn-sm" onClick={() => unregister(r.athleteId)}>Remove</button></td>}
                 </tr>
               ))}
             </tbody>
@@ -508,19 +567,26 @@ function RegistrationPanel({ comp, isAuthenticated }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function CompetitionsPage() {
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAdmin, isAuthenticated, user } = useAuth();
   const [competitions, setCompetitions] = useState([]);
+  const [athletes, setAthletes] = useState([]);
+  const [confirmComp, setConfirmComp] = useState(null);
   const [selected, setSelected] = useState(null);
   const [activeTab, setActiveTab] = useState("results");
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState("");
-  const [confirmComp, setConfirmComp] = useState(null);
 
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    try { const r = await apiClient.get("/competitions"); setCompetitions(r.data); }
-    catch { setError("Failed to load competitions."); }
+    try {
+      const [compsRes, athletesRes] = await Promise.all([
+        apiClient.get("/competitions"),
+        apiClient.get("/athletes"),
+      ]);
+      setCompetitions(compsRes.data);
+      setAthletes(athletesRes.data);
+    } catch { setError("Failed to load competitions."); }
   };
 
   const handleDelete = (comp, e) => {
@@ -619,7 +685,7 @@ export default function CompetitionsPage() {
 
           {activeTab === "results" && selected.type === "SLALOM"   && <SlalomPanel   comp={selected} isAdmin={isAdmin} />}
           {activeTab === "results" && selected.type === "BIATHLON" && <BiathlonPanel comp={selected} isAdmin={isAdmin} />}
-          {activeTab === "registrations" && <RegistrationPanel comp={selected} isAuthenticated={isAuthenticated} />}
+          {activeTab === "registrations" && <RegistrationPanel comp={selected} isAuthenticated={isAuthenticated} isAdmin={isAdmin} user={user} athletes={athletes} />}
         </div>
       )}
     </div>

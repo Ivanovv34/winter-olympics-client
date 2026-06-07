@@ -211,7 +211,7 @@ export default function AthletesPage() {
           <h1 className="page-title">Athletes</h1>
           <p className="page-subtitle">{athletes.length} registered athletes in the Winter Games.</p>
         </div>
-        {isAuthenticated && (
+        {isAuthenticated && (isAdmin || !athletes.some(a => String(a.userId) === String(user?.id))) && (
           <button className="btn btn-primary" onClick={() => setModal("create")}>
             + Register Athlete
           </button>
