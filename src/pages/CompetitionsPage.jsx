@@ -20,7 +20,7 @@ function parseErrors(err) {
   const data = err.response?.data;
   if (!data) return "An unexpected error occurred.";
   if (Array.isArray(data.messages) && data.messages.length > 0) return data.messages.join("\n");
-  if (Array.isArray(data.errors)   && data.errors.length > 0)   return data.errors.join("\n");
+  if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors.join("\n");
   if (data.message) return data.message;
   return "An unexpected error occurred.";
 }
@@ -32,7 +32,7 @@ function validateCompetition(form) {
   if (Number(form.minAge) > 100) return "Minimum age cannot exceed 100.";
   if (!form.competitionDate) return "Competition date is required.";
   const d = new Date(form.competitionDate);
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   if (d < today) return "Competition date must be today or in the future.";
   return null;
 }
@@ -107,7 +107,7 @@ function CreateCompModal({ onClose, onSaved }) {
 }
 
 // ── Slalom Panel ──────────────────────────────────────────────────────────
-function SlalomPanel({ comp, isAdmin }) {
+function SlalomPanel({ comp, isAdmin, registrations }) {
   const [tab, setTab] = useState("results");
   const [results, setResults] = useState([]);
   const [ranking, setRanking] = useState([]);
@@ -121,10 +121,10 @@ function SlalomPanel({ comp, isAdmin }) {
   useEffect(() => { loadResults(); loadRanking(); }, [comp.id]);
 
   const loadResults = async () => {
-    try { const r = await apiClient.get(`/competitions/${comp.id}/slalom/results`); setResults(r.data); } catch {}
+    try { const r = await apiClient.get(`/competitions/${comp.id}/slalom/results`); setResults(r.data); } catch { }
   };
   const loadRanking = async () => {
-    try { const r = await apiClient.get(`/competitions/${comp.id}/slalom/ranking`); setRanking(r.data); } catch {}
+    try { const r = await apiClient.get(`/competitions/${comp.id}/slalom/ranking`); setRanking(r.data); } catch { }
   };
 
   const enterFirst = async e => {
@@ -144,7 +144,7 @@ function SlalomPanel({ comp, isAdmin }) {
   const qualify = async e => {
     e.preventDefault();
     try {
-      await apiClient.post(`/competitions/${comp.id}/slalom/qualify-second-run`, { topN: Number(qual.topN) });
+      await apiClient.post(`/competitions/${comp.id}/slalom/qualify-second-run`, { qualificationLimit: Number(qual.topN) });
       m("success", "Second-run start list generated."); loadResults();
     } catch (err) { m("error", parseErrors(err)); }
   };
@@ -194,7 +194,7 @@ function SlalomPanel({ comp, isAdmin }) {
                   <tr key={r.id}>
                     <td className="text-white">{r.athleteFullName}</td>
                     <td className="text-muted">{getFlag(r.country)} {r.country}</td>
-                    <td>{r.didNotFinishFirstRun  ? dnfBadge : fmt(r.firstRunTime)}</td>
+                    <td>{r.didNotFinishFirstRun ? dnfBadge : fmt(r.firstRunTime)}</td>
                     <td>{r.didNotFinishSecondRun ? dnfBadge : fmt(r.secondRunTime)}</td>
                     <td>{fmt(r.totalTime)}</td>
                     <td>{r.qualifiedForSecondRun ? "✅" : "—"}</td>
@@ -240,8 +240,20 @@ function SlalomPanel({ comp, isAdmin }) {
             <div className="card-body">
               <form onSubmit={enterFirst} className="form-grid">
                 <div className="field">
-                  <label>Athlete ID</label>
-                  <input className="input" type="number" value={fr.athleteId} onChange={e => setFr({ ...fr, athleteId: e.target.value })} required />
+                  <label>Athlete</label>
+                  <select
+                    className="select"
+                    value={fr.athleteId}
+                    onChange={e => setFr({ ...fr, athleteId: e.target.value })}
+                    required
+                  >
+                    <option value="">— Select athlete —</option>
+                    {registrations.map(r => (
+                      <option key={r.athleteId} value={r.athleteId}>
+                        {r.athleteFullName} {getFlag(r.country)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="field">
                   <label>Time (seconds)</label>
@@ -278,8 +290,28 @@ function SlalomPanel({ comp, isAdmin }) {
             <div className="card-body">
               <form onSubmit={enterSecond} className="form-grid">
                 <div className="field">
-                  <label>Athlete ID</label>
-                  <input className="input" type="number" value={sr.athleteId} onChange={e => setSr({ ...sr, athleteId: e.target.value })} required />
+                  <label>Athlete</label>
+                  <select
+                    className="select"
+                    value={sr.athleteId}
+                    onChange={e => setSr({ ...sr, athleteId: e.target.value })}
+                    required
+                  >
+                    <option value="">— Select athlete —</option>
+                    {registrations
+                      .filter(r => results.some(res => res.athleteId === r.athleteId && res.qualifiedForSecondRun))
+                      .map(r => (
+                        <option key={r.athleteId} value={r.athleteId}>
+                          {r.athleteFullName} {getFlag(r.country)}
+                        </option>
+                      ))
+                    }
+                  </select>
+                  {results.every(res => !res.qualifiedForSecondRun) && (
+                    <span style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
+                      Generate the second-run start list first.
+                    </span>
+                  )}
                 </div>
                 <div className="field">
                   <label>Time (seconds)</label>
@@ -302,7 +334,7 @@ function SlalomPanel({ comp, isAdmin }) {
 }
 
 // ── Biathlon Panel ────────────────────────────────────────────────────────
-function BiathlonPanel({ comp, isAdmin }) {
+function BiathlonPanel({ comp, isAdmin, registrations }) {
   const [tab, setTab] = useState("results");
   const [results, setResults] = useState([]);
   const [ranking, setRanking] = useState([]);
@@ -314,10 +346,10 @@ function BiathlonPanel({ comp, isAdmin }) {
   useEffect(() => { loadResults(); loadRanking(); }, [comp.id]);
 
   const loadResults = async () => {
-    try { const r = await apiClient.get(`/competitions/${comp.id}/biathlon/results`); setResults(r.data); } catch {}
+    try { const r = await apiClient.get(`/competitions/${comp.id}/biathlon/results`); setResults(r.data); } catch { }
   };
   const loadRanking = async () => {
-    try { const r = await apiClient.get(`/competitions/${comp.id}/biathlon/ranking`); setRanking(r.data); } catch {}
+    try { const r = await apiClient.get(`/competitions/${comp.id}/biathlon/ranking`); setRanking(r.data); } catch { }
   };
 
   const enterResult = async e => {
@@ -347,8 +379,8 @@ function BiathlonPanel({ comp, isAdmin }) {
       {msg.text && <div className={`msg msg-${msg.type}`} style={{ whiteSpace: "pre-line" }}>{msg.text}</div>}
       <div className="tabs">
         {[
-          { id: "results",  label: "🎿 Results" },
-          { id: "ranking",  label: "🏆 Ranking" },
+          { id: "results", label: "🎿 Results" },
+          { id: "ranking", label: "🏆 Ranking" },
           ...(isAdmin ? [{ id: "enter", label: "✏️ Enter Data" }] : []),
         ].map(t => (
           <button key={t.id} className={`tab${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)}>{t.label}</button>
@@ -411,8 +443,20 @@ function BiathlonPanel({ comp, isAdmin }) {
           <div className="card-body">
             <form onSubmit={enterResult} className="form-grid">
               <div className="field">
-                <label>Athlete ID</label>
-                <input className="input" type="number" value={form.athleteId} onChange={e => setForm({ ...form, athleteId: e.target.value })} required />
+                <label>Athlete</label>
+                <select
+                  className="select"
+                  value={form.athleteId}
+                  onChange={e => setForm({ ...form, athleteId: e.target.value })}
+                  required
+                >
+                  <option value="">— Select athlete —</option>
+                  {registrations.map(r => (
+                    <option key={r.athleteId} value={r.athleteId}>
+                      {r.athleteFullName} {getFlag(r.country)}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="field">
                 <label>Ski Time (s)</label>
@@ -438,8 +482,7 @@ function BiathlonPanel({ comp, isAdmin }) {
 }
 
 // ── Registration Panel ────────────────────────────────────────────────────
-// ── Registration Panel ────────────────────────────────────────────────────
-function RegistrationPanel({ comp, isAuthenticated, isAdmin, user, athletes }) {
+function RegistrationPanel({ comp, isAuthenticated, isAdmin, user, athletes, onRegistrationsChange }) {
   const [registrations, setRegistrations] = useState([]);
   const [athleteId, setAthleteId] = useState("");
   const [msg, setMsg] = useState({ type: "", text: "" });
@@ -449,7 +492,11 @@ function RegistrationPanel({ comp, isAuthenticated, isAdmin, user, athletes }) {
   useEffect(() => { load(); }, [comp.id]);
 
   const load = async () => {
-    try { const r = await apiClient.get(`/competitions/${comp.id}/registrations`); setRegistrations(r.data); } catch {}
+    try {
+      const r = await apiClient.get(`/competitions/${comp.id}/registrations`);
+      setRegistrations(r.data);
+      onRegistrationsChange?.(r.data);
+    } catch { }
   };
 
   const myAthlete = user ? athletes.find(a => String(a.userId) === String(user.id)) : null;
@@ -524,20 +571,52 @@ function RegistrationPanel({ comp, isAuthenticated, isAdmin, user, athletes }) {
         </div>
       )}
 
-      {/* ADMIN: Register by ID */}
-      {isAdmin && (
-        <div className="card" style={{ marginBottom: "16px" }}>
-          <div className="card-body">
-            <form onSubmit={registerByIdSubmit} style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
-              <div className="field" style={{ flex: 1 }}>
-                <label>Register Athlete by ID</label>
-                <input className="input" type="number" value={athleteId} onChange={e => setAthleteId(e.target.value)} required placeholder="Athlete ID" />
-              </div>
-              <button type="submit" className="btn btn-primary">Register</button>
-            </form>
+      {/* ADMIN: Register by Name */}
+      {isAdmin && (() => {
+        const calcAge = (birthDate, compDate) => {
+          if (!birthDate || !compDate) return 0;
+          const b = new Date(birthDate);
+          const c = new Date(compDate);
+          let age = c.getFullYear() - b.getFullYear();
+          const m = c.getMonth() - b.getMonth();
+          if (m < 0 || (m === 0 && c.getDate() < b.getDate())) age--;
+          return age;
+        };
+
+        const eligible = athletes.filter(a => {
+          const genderMatch = a.gender === comp.gender;
+          const ageMatch = calcAge(a.birthDate, comp.competitionDate) >= comp.minAge;
+          const notRegistered = !registrations.some(r => r.athleteId === a.id);
+          return genderMatch && ageMatch && notRegistered;
+        });
+
+        return (
+          <div className="card" style={{ marginBottom: "16px" }}>
+            <div className="card-body">
+              <form onSubmit={registerByIdSubmit} style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
+                <div className="field" style={{ flex: 1 }}>
+                  <label>Register Athlete</label>
+                  {eligible.length === 0 ? (
+                    <div className="input" style={{ color: "var(--muted)", display: "flex", alignItems: "center" }}>
+                      No eligible athletes available
+                    </div>
+                  ) : (
+                    <select className="select" value={athleteId} onChange={e => setAthleteId(e.target.value)} required>
+                      <option value="">— Select athlete —</option>
+                      {eligible.map(a => (
+                        <option key={a.id} value={a.id}>
+                          {a.firstName} {a.lastName} {getFlag(a.country)} · {calcAge(a.birthDate, comp.competitionDate)} yrs
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <button type="submit" className="btn btn-primary" disabled={!athleteId}>Register</button>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="card">
         <div className="card-header"><h3>Registered Athletes ({registrations.length})</h3></div>
@@ -570,6 +649,7 @@ export default function CompetitionsPage() {
   const { isAdmin, isAuthenticated, user } = useAuth();
   const [competitions, setCompetitions] = useState([]);
   const [athletes, setAthletes] = useState([]);
+  const [selectedRegistrations, setSelectedRegistrations] = useState([]);
   const [confirmComp, setConfirmComp] = useState(null);
   const [selected, setSelected] = useState(null);
   const [activeTab, setActiveTab] = useState("results");
@@ -603,7 +683,15 @@ export default function CompetitionsPage() {
     } catch { setError("Failed to delete competition."); setConfirmComp(null); }
   };
 
-  const select = comp => { setSelected(comp); setActiveTab("results"); };
+  const select = async comp => {
+    setSelected(comp);
+    setActiveTab("results");
+    setSelectedRegistrations([]);
+    try {
+      const r = await apiClient.get(`/competitions/${comp.id}/registrations`);
+      setSelectedRegistrations(r.data);
+    } catch { }
+  };
 
   return (
     <div>
@@ -674,7 +762,7 @@ export default function CompetitionsPage() {
 
           <div className="tabs">
             {[
-              { id: "results",       label: selected.type === "SLALOM" ? "⛷️ Race" : "🎿 Race" },
+              { id: "results", label: selected.type === "SLALOM" ? "⛷️ Race" : "🎿 Race" },
               { id: "registrations", label: "📋 Athletes" },
             ].map(t => (
               <button key={t.id} className={`tab${activeTab === t.id ? " active" : ""}`} onClick={() => setActiveTab(t.id)}>
@@ -683,9 +771,22 @@ export default function CompetitionsPage() {
             ))}
           </div>
 
-          {activeTab === "results" && selected.type === "SLALOM"   && <SlalomPanel   comp={selected} isAdmin={isAdmin} />}
-          {activeTab === "results" && selected.type === "BIATHLON" && <BiathlonPanel comp={selected} isAdmin={isAdmin} />}
-          {activeTab === "registrations" && <RegistrationPanel comp={selected} isAuthenticated={isAuthenticated} isAdmin={isAdmin} user={user} athletes={athletes} />}
+          {activeTab === "results" && selected.type === "SLALOM" && (
+            <SlalomPanel comp={selected} isAdmin={isAdmin} registrations={selectedRegistrations} />
+          )}
+          {activeTab === "results" && selected.type === "BIATHLON" && (
+            <BiathlonPanel comp={selected} isAdmin={isAdmin} registrations={selectedRegistrations} />
+          )}
+          {activeTab === "registrations" && (
+            <RegistrationPanel
+              comp={selected}
+              isAuthenticated={isAuthenticated}
+              isAdmin={isAdmin}
+              user={user}
+              athletes={athletes}
+              onRegistrationsChange={setSelectedRegistrations}
+            />
+          )}
         </div>
       )}
     </div>
